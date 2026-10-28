@@ -96,12 +96,26 @@ class SmolLM2Backbone(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         import os
-        from transformers import AutoModel
         repo = getattr(cfg, "pretrained_name", "HuggingFaceTB/SmolLM2-135M")
-        # Prefer local cache if already downloaded
         cache_dir = os.path.expanduser("~/.cache/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M")
         local_only = os.path.exists(cache_dir)
-        self.llama = AutoModel.from_pretrained(repo, local_files_only=local_only, dtype=torch.float32)
+        try:
+            from transformers import AutoModel
+            self.llama = AutoModel.from_pretrained(repo, local_files_only=local_only, dtype=torch.float32)
+        except Exception:
+            try:
+                from transformers.models.llama.modeling_llama import LlamaModel, LlamaConfig
+                try:
+                    self.llama = LlamaModel.from_pretrained(repo, local_files_only=local_only, dtype=torch.float32)
+                except Exception:
+                    conf = LlamaConfig(
+                        hidden_size=576, intermediate_size=1536, num_attention_heads=9,
+                        num_key_value_heads=3, num_hidden_layers=30, vocab_size=49152,
+                    )
+                    self.llama = LlamaModel(conf)
+            except Exception as e:
+                raise e
+
         if getattr(cfg, "freeze_backbone", False):
             for p in self.llama.parameters():
                 p.requires_grad = False

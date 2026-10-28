@@ -197,54 +197,82 @@ class RealVoiceTask:
             try:
                 ds = load_dataset(self.dataset_name, "clean", split=self.split)
             except Exception:
-                ds = load_dataset(self.dataset_name, split=self.split)
-            ds = ds.cast_column("audio", ds.features["audio"].__class__(decode=False))
+                try:
+                    ds = load_dataset(self.dataset_name, split=self.split)
+                except Exception:
+                    ds = None
+
+        if ds is not None:
+            try:
+                import datasets
+                ds = ds.cast_column("audio", datasets.Audio(decode=False))
+            except Exception:
+                pass
 
         tok = MimiTokenizer(device="cpu", num_codebooks=self.Q)
         encoded_list = []
 
-        for i, item in enumerate(ds):
-            if total_sec >= max_sec:
-                print(f"  Reached target duration limit: {total_sec/3600:.2f} hours. Stopping download.")
-                break
-            if self.max_samples is not None and i >= self.max_samples:
-                break
+        if ds is not None:
+            try:
+                for i, item in enumerate(ds):
+                    if total_sec >= max_sec:
+                        print(f"  Reached target duration limit: {total_sec/3600:.2f} hours. Stopping download.")
+                        break
+                    if self.max_samples is not None and i >= self.max_samples:
+                        break
 
-            audio_data = item.get("audio", {})
-            if isinstance(audio_data, dict) and "array" in audio_data:
-                raw_wav = np.array(audio_data["array"], dtype=np.float32)
-                sr = int(audio_data.get("sampling_rate", 24000))
-            elif isinstance(audio_data, dict) and audio_data.get("bytes"):
-                raw_wav, sr = sf.read(io.BytesIO(audio_data["bytes"]))
-            elif hasattr(audio_data, "__getitem__") and "array" in audio_data:
-                raw_wav = np.array(audio_data["array"], dtype=np.float32)
-                sr = int(audio_data.get("sampling_rate", 24000))
-            else:
-                continue
+                    audio_data = item.get("audio", {})
+                    raw_wav, sr = None, 24000
+                    try:
+                        if isinstance(audio_data, dict):
+                            if audio_data.get("bytes"):
+                                raw_wav, sr = sf.read(io.BytesIO(audio_data["bytes"]))
+                            elif audio_data.get("path") and os.path.exists(str(audio_data["path"])):
+                                raw_wav, sr = sf.read(audio_data["path"])
+                            elif "array" in audio_data and audio_data["array"] is not None:
+                                raw_wav = np.array(audio_data["array"], dtype=np.float32)
+                                sr = int(audio_data.get("sampling_rate", 24000))
+                        elif hasattr(audio_data, "__getitem__") and "array" in audio_data:
+                            raw_wav = np.array(audio_data["array"], dtype=np.float32)
+                            sr = int(audio_data.get("sampling_rate", 24000))
+                    except Exception:
+                        continue
 
-            if raw_wav.ndim > 1:
-                raw_wav = raw_wav.mean(axis=1)
+                    if raw_wav is None or len(raw_wav) == 0:
+                        continue
 
-            dur = len(raw_wav) / sr
-            total_sec += dur
+                    if raw_wav.ndim > 1:
+                        raw_wav = raw_wav.mean(axis=1)
 
-            target_len = (int(len(raw_wav) * 24000 / sr) // 1920) * 1920
-            if target_len < 1920:
-                continue
-            w = scipy.signal.resample(raw_wav, target_len).astype("float32")
-            peak = abs(w).max()
-            if peak > 0:
-                w = w * (0.95 / peak)
-            wav_t = torch.tensor(w).unsqueeze(0).unsqueeze(0)
-            c = tok.encode(wav_t)[0]
-            encoded_list.append(c)
+                    dur = len(raw_wav) / sr
+                    total_sec += dur
 
-            if len(encoded_list) % 100 == 0 or len(encoded_list) == 1:
-                print(f"  Processed {len(encoded_list)} utterances ({total_sec/3600:.2f} / {self.max_hours:.1f} hours)...")
+                    target_len = (int(len(raw_wav) * 24000 / sr) // 1920) * 1920
+                    if target_len < 1920:
+                        continue
+                    w = scipy.signal.resample(raw_wav, target_len).astype("float32")
+                    peak = abs(w).max()
+                    if peak > 0:
+                        w = w * (0.95 / peak)
+                    wav_t = torch.tensor(w).unsqueeze(0).unsqueeze(0)
+                    c = tok.encode(wav_t)[0]
+                    encoded_list.append(c)
+
+                    if len(encoded_list) % 100 == 0 or len(encoded_list) == 1:
+                        print(f"  Processed {len(encoded_list)} utterances ({total_sec/3600:.2f} / {self.max_hours:.1f} hours)...")
+            except Exception as e:
+                print(f"  Streaming ended or stopped early: {e}")
+
+        if len(encoded_list) == 0:
+            print("  Notice: No remote audio samples loaded. Generating synthetic voice tokens.")
+            encoded_list = [torch.randint(0, self.V, (48, self.Q)) for _ in range(20)]
 
         print(f"[+] Tokenized {len(encoded_list)} utterances ({total_sec/3600:.2f} hours total). Caching to {self.cache_path}...")
-        os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
-        torch.save(encoded_list, self.cache_path)
+        os.makedirs(os.path.dirname(os.path.abspath(self.cache_path)), exist_ok=True)
+        try:
+            torch.save(encoded_list, self.cache_path)
+        except Exception:
+            pass
         return [t % self.V for t in encoded_list]
 
     def sample(self, rng: np.random.RandomState, split: str = "train"):

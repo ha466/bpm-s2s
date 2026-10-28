@@ -20,6 +20,9 @@ fi
 echo -e "\n[2/5] Installing system audio libraries & uv..."
 apt-get update -qq && apt-get install -y -qq libportaudio2 libsndfile1 ffmpeg > /dev/null 2>&1 || true
 
+# Remove conflicting Colab packages (torchvision & torchcodec cause C++ ABI mismatches on Colab)
+pip uninstall -y torchvision torchcodec > /dev/null 2>&1 || true
+
 if ! command -v uv &> /dev/null; then
     pip install -q uv
 fi
@@ -27,6 +30,7 @@ fi
 # 3. Fast package installation using uv
 echo -e "\n[3/5] Installing Python dependencies with uv..."
 uv pip install --system -r requirements.txt
+pip uninstall -y torchvision torchcodec > /dev/null 2>&1 || true
 
 # 4. Unit Test Verification
 echo -e "\n[4/5] Running test suite to verify environment..."
