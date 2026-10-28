@@ -1,5 +1,10 @@
-torch>=2.5        # nn.RMSNorm; tested with 2.14.1 (CPU)
+torch>=2.5
 numpy
 pyyaml
 pytest
-# optional, real-audio path only (UNTESTED here): moshi huggingface_hub
+moshi
+huggingface_hub
+transformers
+datasets
+soundfile
+scipy

@@ -52,8 +52,17 @@ Run BPM-S2S with SmolLM2-135M on a free Google Colab T4 GPU instance:
 !git clone https://github.com/ha466/bpm-s2s.git
 %cd bpm-s2s
 
-# 2. Run the all-in-one Colab setup, training, and I/O test
+# 2. Run the all-in-one Colab setup (uses uv for lightning-fast install), training, and I/O test
 !bash colab.sh
+```
+
+Or run step-by-step directly in Colab notebook cells:
+
+```python
+!pip install -q uv
+!uv pip install --system -r requirements.txt
+!python scripts/train.py --config configs/colab_t4_smollm2.yaml --data real
+!python scripts/test_smollm2_io.py
 ```
 
 To train on 2 to 5 hours of clean 24 kHz speech using **LibriTTS-R** (recommended best dataset for Mimi):
