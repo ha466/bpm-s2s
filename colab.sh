@@ -36,15 +36,18 @@ python -m pytest tests -q
 echo -e "\n[5/5] Starting BPM-S2S training with SmolLM2-135M backbone on T4 GPU..."
 DATASET_NAME="${1:-hf-internal-testing/librispeech_asr_dummy}"
 CONFIG_PATH="${2:-configs/colab_t4_smollm2.yaml}"
+MAX_HOURS="${3:-3.5}"
 
-echo "  Dataset: $DATASET_NAME"
-echo "  Config:  $CONFIG_PATH"
+echo "  Dataset:   $DATASET_NAME"
+echo "  Config:    $CONFIG_PATH"
+echo "  Max Hours: $MAX_HOURS hours (streaming mode: stops under 5 hours)"
 
 python scripts/train.py \
     --config "$CONFIG_PATH" \
     --data real \
     --dataset "$DATASET_NAME" \
     --split validation \
+    --max_hours "$MAX_HOURS" \
     --out runs/colab_t4_smollm2
 
 # Run Streaming Inference Demo

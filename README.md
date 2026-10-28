@@ -65,10 +65,11 @@ Or run step-by-step directly in Colab notebook cells:
 !python scripts/test_smollm2_io.py
 ```
 
-To train on 2 to 5 hours of clean 24 kHz speech using **LibriTTS-R** (recommended best dataset for Mimi):
+To train on under 5 hours (e.g. 3.5 hours) of clean 24 kHz speech using **LibriTTS-R** (streams on the fly, downloads only the requested audio duration without downloading the full 60GB dataset):
 
 ```python
-!bash colab.sh parler-tts/libritts_r_filtered configs/colab_t4_smollm2.yaml
+# Pass dataset, config, and max hours (e.g. 3.5 hours, strictly under 5 hours)
+!bash colab.sh parler-tts/libritts_r_filtered configs/colab_t4_smollm2.yaml 3.5
 ```
 
 ### Recommended Datasets for 2 to 5 Hours

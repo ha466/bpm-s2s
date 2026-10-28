@@ -16,10 +16,10 @@ from bpm.data import SynthTask, RealVoiceTask, Spec, run_closed_loop
 
 
 def make_task(mcfg, tcfg, data_mode="synth", dataset_name="hf-internal-testing/librispeech_asr_dummy",
-              split="validation", max_samples=None):
+              split="validation", max_samples=None, max_hours=4.0):
     spec = Spec(Q=mcfg.Q, V=mcfg.V, T=tcfg.T, Gmax=tcfg.Gmax)
     if data_mode == "real":
-        return RealVoiceTask(spec, dataset_name=dataset_name, split=split, max_samples=max_samples)
+        return RealVoiceTask(spec, dataset_name=dataset_name, split=split, max_samples=max_samples, max_hours=max_hours)
     return SynthTask(spec)
 
 
@@ -38,6 +38,7 @@ def main():
     ap.add_argument("--dataset", default="hf-internal-testing/librispeech_asr_dummy", help="Hugging Face dataset name")
     ap.add_argument("--split", default="validation", help="Dataset split")
     ap.add_argument("--max_samples", type=int, default=None, help="Max audio samples to load")
+    ap.add_argument("--max_hours", type=float, default=4.0, help="Maximum audio duration in hours (strictly under 5 hours)")
     args = ap.parse_args()
     mcfg, tcfg = load_cfg(args.config)
     if args.out: tcfg.out = args.out
@@ -50,7 +51,8 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}", flush=True)
 
-    task = make_task(mcfg, tcfg, data_mode=args.data, dataset_name=args.dataset, split=args.split, max_samples=args.max_samples)
+    task = make_task(mcfg, tcfg, data_mode=args.data, dataset_name=args.dataset, split=args.split,
+                     max_samples=args.max_samples, max_hours=args.max_hours)
     model = S2SModel(mcfg).to(device)
     pc = count_params(model)
     print(f"[{mcfg.kind} K={model.K} backbone={mcfg.backbone} data={args.data}] params: {pc}", flush=True)

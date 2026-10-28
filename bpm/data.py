@@ -126,9 +126,12 @@ def run_closed_loop(task: SynthTask, streamer_factory, n_examples: int, seed: in
 
 
 class RealVoiceTask:
-    """Real voice dataset loader converting audio utterances to discrete Mimi tokens."""
+    """Real voice dataset loader converting audio utterances to discrete Mimi tokens.
+    Supports streaming mode so only the requested hours (under 5 hours) are downloaded.
+    """
     def __init__(self, spec: Spec, dataset_name: str = "hf-internal-testing/librispeech_asr_dummy",
                  split: str = "validation", max_samples: int | None = None,
+                 max_hours: float = 4.0,
                  cache_dir: str = "runs", split_ratio: float = 0.85):
         self.sp = spec
         self.Q = spec.Q
@@ -137,8 +140,9 @@ class RealVoiceTask:
         self.dataset_name = dataset_name
         self.split = split
         self.max_samples = max_samples
+        self.max_hours = max_hours
         safe_name = dataset_name.replace("/", "_")
-        tag = f"_{max_samples}" if max_samples else ""
+        tag = f"_{max_hours:.1f}h"
         self.cache_path = os.path.join(cache_dir, f"{safe_name}_{split}{tag}_q{self.Q}.pt")
         # Legacy fallback for backward compatibility
         legacy_path = os.path.join(cache_dir, f"librispeech_mimi_q{self.Q}.pt")
@@ -169,20 +173,61 @@ class RealVoiceTask:
         from datasets import load_dataset
         from .mimi_adapter import MimiTokenizer
 
-        try:
-            ds = load_dataset(self.dataset_name, "clean", split=self.split)
-        except Exception:
-            ds = load_dataset(self.dataset_name, split=self.split)
-        ds = ds.cast_column("audio", ds.features["audio"].__class__(decode=False))
-        if self.max_samples is not None:
-            ds = ds.select(range(min(len(ds), self.max_samples)))
+        max_sec = self.max_hours * 3600.0
+        total_sec = 0.0
+        offline = os.environ.get("HF_DATASETS_OFFLINE") == "1"
+
+        print(f"[*] Loading dataset '{self.dataset_name}' (target: under {self.max_hours:.1f} hours)...")
+        # Try streaming mode first to avoid downloading full 60GB dataset upfront
+        ds = None
+        if not offline:
+            for s_name in [None, "clean"]:
+                try:
+                    kwargs = {"split": self.split, "streaming": True}
+                    if s_name:
+                        kwargs["name"] = s_name
+                    ds = load_dataset(self.dataset_name, **kwargs)
+                    print(f"  Streaming mode enabled (downloading sample-by-sample on the fly).")
+                    break
+                except Exception:
+                    ds = None
+
+        if ds is None:
+            # Fall back to standard cached load
+            try:
+                ds = load_dataset(self.dataset_name, "clean", split=self.split)
+            except Exception:
+                ds = load_dataset(self.dataset_name, split=self.split)
+            ds = ds.cast_column("audio", ds.features["audio"].__class__(decode=False))
 
         tok = MimiTokenizer(device="cpu", num_codebooks=self.Q)
         encoded_list = []
-        for i in range(len(ds)):
-            raw_wav, sr = sf.read(io.BytesIO(ds[i]["audio"]["bytes"]))
+
+        for i, item in enumerate(ds):
+            if total_sec >= max_sec:
+                print(f"  Reached target duration limit: {total_sec/3600:.2f} hours. Stopping download.")
+                break
+            if self.max_samples is not None and i >= self.max_samples:
+                break
+
+            audio_data = item.get("audio", {})
+            if isinstance(audio_data, dict) and "array" in audio_data:
+                raw_wav = np.array(audio_data["array"], dtype=np.float32)
+                sr = int(audio_data.get("sampling_rate", 24000))
+            elif isinstance(audio_data, dict) and audio_data.get("bytes"):
+                raw_wav, sr = sf.read(io.BytesIO(audio_data["bytes"]))
+            elif hasattr(audio_data, "__getitem__") and "array" in audio_data:
+                raw_wav = np.array(audio_data["array"], dtype=np.float32)
+                sr = int(audio_data.get("sampling_rate", 24000))
+            else:
+                continue
+
             if raw_wav.ndim > 1:
                 raw_wav = raw_wav.mean(axis=1)
+
+            dur = len(raw_wav) / sr
+            total_sec += dur
+
             target_len = (int(len(raw_wav) * 24000 / sr) // 1920) * 1920
             if target_len < 1920:
                 continue
@@ -193,6 +238,11 @@ class RealVoiceTask:
             wav_t = torch.tensor(w).unsqueeze(0).unsqueeze(0)
             c = tok.encode(wav_t)[0]
             encoded_list.append(c)
+
+            if len(encoded_list) % 100 == 0 or len(encoded_list) == 1:
+                print(f"  Processed {len(encoded_list)} utterances ({total_sec/3600:.2f} / {self.max_hours:.1f} hours)...")
+
+        print(f"[+] Tokenized {len(encoded_list)} utterances ({total_sec/3600:.2f} hours total). Caching to {self.cache_path}...")
         os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
         torch.save(encoded_list, self.cache_path)
         return [t % self.V for t in encoded_list]
