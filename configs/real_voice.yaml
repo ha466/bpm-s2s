@@ -1,0 +1,5 @@
+# Real-voice training configuration: native Mimi tokens (Q=8, V=2048), optimized for CPU training.
+model: {Q: 8, V: 2048, backbone: transformer, d: 128, n_layers: 3, n_heads: 4, window: 48, K: 4,
+        ref_d: 96, ref_layers: 2, ref_heads: 4, refine_steps: 4, kind: bpm}
+train: {steps: 300, batch: 8, lr: 0.001, warmup: 30, seed: 42, log_every: 25, T: 48, out: runs/real_voice}
+

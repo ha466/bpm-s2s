@@ -1,0 +1,3 @@
+model: {Q: 8, V: 2048, backbone: transformer, d: 768, n_layers: 16, n_heads: 12, window: 250, K: 4,
+        ref_d: 512, ref_layers: 8, ref_heads: 8, refine_steps: 4, kind: bpm}
+train: {steps: 300000, batch: 32, lr: 0.0003, warmup: 2000, T: 1024}

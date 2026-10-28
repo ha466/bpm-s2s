@@ -1,0 +1,6 @@
+# SmolLM2-135M Pretrained Backbone Configuration for BPM-S2S
+model: {Q: 8, V: 2048, backbone: smollm2, d: 128, K: 4,
+        pretrained_name: "HuggingFaceTB/SmolLM2-135M", freeze_backbone: true,
+        ref_d: 96, ref_layers: 2, ref_heads: 4, refine_steps: 4, kind: bpm}
+train: {steps: 100, batch: 4, lr: 0.001, warmup: 20, seed: 42, log_every: 20, T: 32, out: runs/smollm2_voice}
+

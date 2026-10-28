@@ -1,0 +1,4 @@
+# Ultra-small budget target 20-50M (exact count: scripts/param_budget.py). Real Mimi token layout.
+model: {Q: 8, V: 2048, backbone: transformer, d: 384, n_layers: 8, n_heads: 6, window: 250, K: 4,
+        ref_d: 256, ref_layers: 4, ref_heads: 4, refine_steps: 4, kind: bpm}
+train: {steps: 100000, batch: 32, lr: 0.0005, warmup: 2000, T: 1024}

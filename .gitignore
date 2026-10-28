@@ -1,0 +1,29 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Large checkpoints and model weights
+runs/
+*.pt
+*.bin
+*.safetensors
+*.ckpt
+
+# Generated audio artifacts
+*.wav
+*.mp3
+*.flac
+
+# Logs
+*.log
+
+# OS artifacts
+.DS_Store
+Thumbs.db
