@@ -137,17 +137,27 @@ class RealVoiceTask:
         self.Q = spec.Q
         self.V = spec.V
         self.T = spec.T
-        self.dataset_name = dataset_name
-        self.split = split
+        # Resolve dataset aliases: dev.clean / dev-clean / librispeech -> openslr/librispeech_asr (validation split is dev-clean, ~337MB, 5.4h)
+        name_lower = dataset_name.lower().strip()
+        if name_lower in ("dev.clean", "dev-clean", "dev_clean", "librispeech", "librispeech_asr", "openslr/librispeech_asr"):
+            self.dataset_name = "openslr/librispeech_asr"
+            self.config_name = "clean"
+            self.split = "validation"
+        else:
+            self.dataset_name = dataset_name
+            self.config_name = "clean" if "librispeech" in name_lower else None
+            self.split = split
+
         self.max_samples = max_samples
         self.max_hours = max_hours
-        safe_name = dataset_name.replace("/", "_")
+        safe_name = self.dataset_name.replace("/", "_")
         tag = f"_{max_hours:.1f}h"
-        self.cache_path = os.path.join(cache_dir, f"{safe_name}_{split}{tag}_q{self.Q}.pt")
+        self.cache_path = os.path.join(cache_dir, f"{safe_name}_{self.split}{tag}_q{self.Q}.pt")
         # Legacy fallback for backward compatibility
         legacy_path = os.path.join(cache_dir, f"librispeech_mimi_q{self.Q}.pt")
-        if not os.path.exists(self.cache_path) and os.path.exists(legacy_path) and "librispeech" in dataset_name:
-            self.cache_path = legacy_path
+        if not os.path.exists(self.cache_path) and os.path.exists(legacy_path):
+            if any(k in self.dataset_name for k in ["librispeech", "clean"]):
+                self.cache_path = legacy_path
         self.tokens = self._load_or_encode_tokens()
         n_train = max(1, int(len(self.tokens) * split_ratio))
         self.train_tokens = self.tokens[:n_train]
@@ -177,30 +187,51 @@ class RealVoiceTask:
         total_sec = 0.0
         offline = os.environ.get("HF_DATASETS_OFFLINE") == "1"
 
-        print(f"[*] Loading dataset '{self.dataset_name}' (target: under {self.max_hours:.1f} hours)...")
-        # Try streaming mode first to avoid downloading full 60GB dataset upfront
+        print(f"[*] Loading dataset '{self.dataset_name}' (config: {self.config_name}, split: {self.split}, target: under {self.max_hours:.1f} hours)...")
         ds = None
         if not offline:
-            for s_name in [None, "clean"]:
+            # 1. Direct split load (downloads ONLY dev-clean validation parquet: ~337MB, avoiding the 60GB dataset)
+            try:
+                load_args = [self.dataset_name]
+                if self.config_name:
+                    load_args.append(self.config_name)
+                print(f"  Fetching dev.clean split '{self.split}' directly (~337MB)...")
+                ds = load_dataset(*load_args, split=self.split)
+                print(f"  Successfully loaded '{self.split}' ({len(ds)} utterances).")
+            except Exception as e:
+                print(f"  Direct split load skipped ({e}). Trying streaming mode...")
                 try:
                     kwargs = {"split": self.split, "streaming": True}
-                    if s_name:
-                        kwargs["name"] = s_name
+                    if self.config_name:
+                        kwargs["name"] = self.config_name
                     ds = load_dataset(self.dataset_name, **kwargs)
-                    print(f"  Streaming mode enabled (downloading sample-by-sample on the fly).")
-                    break
-                except Exception:
+                    print(f"  Streaming mode enabled.")
+                except Exception as stream_err:
+                    print(f"  Streaming load skipped ({stream_err}).")
                     ds = None
 
-        if ds is None:
-            # Fall back to standard cached load
-            try:
-                ds = load_dataset(self.dataset_name, "clean", split=self.split)
-            except Exception:
+        # 2. Fallback: Direct download of dev-clean.tar.gz (337MB) from OpenSLR mirror
+        if ds is None and not offline and ("librispeech" in self.dataset_name or "clean" in self.dataset_name):
+            import urllib.request, tarfile
+            cache_folder = os.path.dirname(os.path.abspath(self.cache_path))
+            tar_dir = os.path.join(cache_folder, "dev-clean-raw")
+            tar_path = os.path.join(tar_dir, "dev-clean.tar.gz")
+            extract_dir = os.path.join(tar_dir, "LibriSpeech", "dev-clean")
+            if not os.path.exists(extract_dir):
+                os.makedirs(tar_dir, exist_ok=True)
+                print("  Directly downloading dev-clean.tar.gz from OpenSLR mirror (~337MB)...")
                 try:
-                    ds = load_dataset(self.dataset_name, split=self.split)
-                except Exception:
-                    ds = None
+                    urllib.request.urlretrieve("https://www.openslr.org/resources/12/dev-clean.tar.gz", tar_path)
+                    print("  Extracting dev-clean.tar.gz...")
+                    with tarfile.open(tar_path, "r:gz") as tar:
+                        tar.extractall(tar_dir)
+                except Exception as dl_err:
+                    print(f"  OpenSLR direct download failed: {dl_err}")
+            if os.path.exists(extract_dir):
+                flac_files = [os.path.join(r, f) for r, _, fs in os.walk(extract_dir) for f in fs if f.endswith(".flac")]
+                if flac_files:
+                    print(f"  Found {len(flac_files)} dev-clean FLAC files in {extract_dir}.")
+                    ds = [{"audio": {"path": p}} for p in flac_files]
 
         if ds is not None:
             try:

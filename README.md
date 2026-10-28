@@ -52,35 +52,29 @@ Run BPM-S2S with SmolLM2-135M on a free Google Colab T4 GPU instance:
 !git clone https://github.com/ha466/bpm-s2s.git
 %cd bpm-s2s
 
-# 2. Run the all-in-one Colab setup (uses uv for lightning-fast install), training, and I/O test
+# 2. Run the all-in-one Colab setup (uses uv for fast install, downloads only dev.clean 337MB, trains on T4, runs inference)
 !bash colab.sh
 ```
 
-Or run step-by-step directly in Colab notebook cells:
+Or pass a specific dataset or max duration:
 
 ```python
-!pip install -q uv
-!uv pip install --system -r requirements.txt
-!python scripts/train.py --config configs/colab_t4_smollm2.yaml --data real
-!python scripts/test_smollm2_io.py
-```
+# Train on dev.clean (only 337MB, 5.4 hours of clean speech; avoids the full 60GB dataset):
+!bash colab.sh dev.clean configs/colab_t4_smollm2.yaml 5.0
 
-To train on under 5 hours (e.g. 3.5 hours) of clean 24 kHz speech using **LibriTTS-R** (streams on the fly, downloads only the requested audio duration without downloading the full 60GB dataset):
-
-```python
-# Pass dataset, config, and max hours (e.g. 3.5 hours, strictly under 5 hours)
+# Or train on 24kHz studio speech (LibriTTS-R):
 !bash colab.sh parler-tts/libritts_r_filtered configs/colab_t4_smollm2.yaml 3.5
 ```
 
-### Recommended Datasets for 2 to 5 Hours
+### Dataset Options (Under 5 Hours)
 
-1. **`parler-tts/libritts_r_filtered` (Recommended Best)**:
-   - Native **24 kHz** (matches Mimi codec rate natively with zero resampling distortion).
-   - High-fidelity studio speech, diverse speakers, CC-BY-4.0 license.
-2. **`librispeech_asr` (`clean` split)**:
-   - Clean, diverse English speech with aligned transcripts.
+1. **`dev.clean` (`openslr/librispeech_asr` clean:validation) (Default)**:
+   - Downloads **ONLY 337 MB** (the clean validation split of LibriSpeech, ~5.4 hours).
+   - Completely avoids downloading the full 60 GB dataset.
+2. **`parler-tts/libritts_r_filtered`**:
+   - Native **24 kHz** studio speech (matches Mimi codec rate natively with zero resampling distortion).
 3. **`hf-internal-testing/librispeech_asr_dummy`**:
-   - Lightweight test dataset for instant smoke testing and verification.
+   - Lightweight dummy dataset for rapid unit testing and smoke tests.
 
 ## Getting real data and checkpoints (not done here)
 

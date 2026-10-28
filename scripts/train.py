@@ -35,10 +35,10 @@ def main():
     ap.add_argument("--steps", type=int, default=None)
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--data", choices=["synth", "real"], default="synth", help="Data source: 'synth' or 'real'")
-    ap.add_argument("--dataset", default="hf-internal-testing/librispeech_asr_dummy", help="Hugging Face dataset name")
-    ap.add_argument("--split", default="validation", help="Dataset split")
+    ap.add_argument("--dataset", default="dev.clean", help="Dataset name or alias (e.g. 'dev.clean', 'openslr/librispeech_asr')")
+    ap.add_argument("--split", default="validation", help="Dataset split (default: 'validation' for dev.clean)")
     ap.add_argument("--max_samples", type=int, default=None, help="Max audio samples to load")
-    ap.add_argument("--max_hours", type=float, default=4.0, help="Maximum audio duration in hours (strictly under 5 hours)")
+    ap.add_argument("--max_hours", type=float, default=5.0, help="Maximum audio duration in hours (default: 5.0h)")
     args = ap.parse_args()
     mcfg, tcfg = load_cfg(args.config)
     if args.out: tcfg.out = args.out

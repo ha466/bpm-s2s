@@ -30,7 +30,9 @@ def main():
     print("       BPM-S2S WITH PRETRAINED SMOLLM2-135M: INPUT / OUTPUT TEST DEMO")
     print("=" * 85)
 
-    ckpt_path = "runs/smollm2_voice/ckpt.pt"
+    ckpt_path = "runs/colab_t4_smollm2/ckpt.pt"
+    if not os.path.exists(ckpt_path):
+        ckpt_path = "runs/smollm2_voice/ckpt.pt"
     if not os.path.exists(ckpt_path):
         print(f"Error: Checkpoint not found at {ckpt_path}")
         return

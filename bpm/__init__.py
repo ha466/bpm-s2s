@@ -7,3 +7,4 @@ for _mod in ("torchcodec", "torchvision"):
         __import__(_mod)
     except Exception:
         sys.modules[_mod] = None
+

@@ -38,13 +38,13 @@ python -m pytest tests -q
 
 # 5. Train Model on T4 GPU with Real Voice Data
 echo -e "\n[5/5] Starting BPM-S2S training with SmolLM2-135M backbone on T4 GPU..."
-DATASET_NAME="${1:-hf-internal-testing/librispeech_asr_dummy}"
+DATASET_NAME="${1:-dev.clean}"
 CONFIG_PATH="${2:-configs/colab_t4_smollm2.yaml}"
-MAX_HOURS="${3:-3.5}"
+MAX_HOURS="${3:-5.0}"
 
-echo "  Dataset:   $DATASET_NAME"
+echo "  Dataset:   $DATASET_NAME (LibriSpeech dev-clean: only ~337MB, avoiding 60GB download)"
 echo "  Config:    $CONFIG_PATH"
-echo "  Max Hours: $MAX_HOURS hours (streaming mode: stops under 5 hours)"
+echo "  Max Hours: $MAX_HOURS hours (strictly capped under 5 hours)"
 
 python scripts/train.py \
     --config "$CONFIG_PATH" \
