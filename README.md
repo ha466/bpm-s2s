@@ -49,8 +49,8 @@ Run BPM-S2S with SmolLM2-135M on a free Google Colab T4 GPU instance:
 
 ```python
 # 1. Clone your GitHub repository & navigate into it
-!git clone <YOUR-GITHUB-REPO-URL>
-%cd <REPO-NAME>
+!git clone https://github.com/ha466/bpm-s2s.git
+%cd bpm-s2s
 
 # 2. Run the all-in-one Colab setup, training, and I/O test
 !bash colab.sh
